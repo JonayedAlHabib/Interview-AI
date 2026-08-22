@@ -9,12 +9,13 @@ const api = axios.create({
 /**
  * @description Service to generate interview report based on user self description, resume and job description.
  */
-export const generateInterviewReport = async ({ jobDescription, selfDescription, resumeFile }) => {
+export const generateInterviewReport = async ({ jobDescription, selfDescription, resumeFile, roadmapDays }) => {
 
     const formData = new FormData()
     formData.append("jobDescription", jobDescription)
     formData.append("selfDescription", selfDescription)
     formData.append("resume", resumeFile)
+    formData.append("roadmapDays", roadmapDays)
 
     const response = await api.post("/api/interview/", formData, {
         headers: {
@@ -52,6 +53,18 @@ export const getAllInterviewReports = async () => {
  */
 export const generateResumePdf = async ({ interviewReportId }) => {
     const response = await api.post(`/api/interview/resume/pdf/${interviewReportId}`, null, {
+        responseType: "blob"
+    })
+
+    return response.data
+}
+
+
+/**
+ * @description Service to generate cover letter pdf based on user self description, resume content and job description.
+ */
+export const generateCoverLetterPdf = async ({ interviewReportId }) => {
+    const response = await api.post(`/api/interview/cover-letter/pdf/${interviewReportId}`, null, {
         responseType: "blob"
     })
 

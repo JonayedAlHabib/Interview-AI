@@ -11,6 +11,7 @@ const Home = () => {
     const [ jobDescription, setJobDescription ] = useState("")
     const [ selfDescription, setSelfDescription ] = useState("")
     const [ resumeFileName, setResumeFileName ] = useState("")
+    const [ roadmapDays, setRoadmapDays ] = useState(15)
     const [ errorMessage, setErrorMessage ] = useState("")
     const resumeInputRef = useRef()
 
@@ -35,7 +36,7 @@ const Home = () => {
         }
 
         try {
-            const data = await generateReport({ jobDescription, selfDescription, resumeFile })
+            const data = await generateReport({ jobDescription, selfDescription, resumeFile, roadmapDays })
             navigate(`/interview/${data._id}`)
         } catch (error) {
             setErrorMessage(error.message || "Something went wrong while generating your interview strategy. Please try again.")
@@ -44,7 +45,7 @@ const Home = () => {
 
     const handleLogoutClick = async () => {
         await handleLogout()
-        navigate('/login')
+        navigate('/')
     }
 
     if (loading) {
@@ -91,7 +92,21 @@ const Home = () => {
                             placeholder={`Paste the full job description here...\ne.g. 'Senior Frontend Engineer at Google requires proficiency in React, TypeScript, and large-scale system design...'`}
                             maxLength={5000}
                         />
-                        <div className='char-counter'>0 / 5000 chars</div>
+                        <div className='char-counter'>{jobDescription.length} / 5000 chars</div>
+
+                        <div className='roadmap-days-select'>
+                            <label htmlFor='roadmapDays' className='section-label'>Preparation Roadmap Length</label>
+                            <select
+                                id='roadmapDays'
+                                name='roadmapDays'
+                                value={roadmapDays}
+                                onChange={(e) => setRoadmapDays(Number(e.target.value))}
+                            >
+                                <option value={7}>7 days</option>
+                                <option value={15}>15 days</option>
+                                <option value={30}>30 days</option>
+                            </select>
+                        </div>
                     </div>
 
                     {/* Vertical Divider */}

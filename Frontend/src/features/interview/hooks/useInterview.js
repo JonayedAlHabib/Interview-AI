@@ -1,12 +1,15 @@
-import { getAllInterviewReports, generateInterviewReport, getInterviewReportById, generateResumePdf } from "../services/interview.api"
+import { getAllInterviewReports, generateInterviewReport, getInterviewReportById, generateResumePdf, generateCoverLetterPdf } from "../services/interview.api"
 import { useContext, useEffect } from "react"
 import { InterviewContext } from "../interview.context"
+import { AuthContext } from "../../auth/auth.context"
 import { useParams } from "react-router"
 
+const sanitizeNameForFilename = (name) => (name || "").toLowerCase().replace(/[^a-z0-9]+/g, "")
 
 export const useInterview = () => {
 
     const context = useContext(InterviewContext)
+    const { user } = useContext(AuthContext)
     const { interviewId } = useParams()
 
     if (!context) {
@@ -15,10 +18,10 @@ export const useInterview = () => {
 
     const { loading, setLoading, report, setReport, reports, setReports } = context
 
-    const generateReport = async ({ jobDescription, selfDescription, resumeFile }) => {
+    const generateReport = async ({ jobDescription, selfDescription, resumeFile, roadmapDays }) => {
         setLoading(true)
         try {
-            const response = await generateInterviewReport({ jobDescription, selfDescription, resumeFile })
+            const response = await generateInterviewReport({ jobDescription, selfDescription, resumeFile, roadmapDays })
             setReport(response.interviewReport)
             return response.interviewReport
         } catch (error) {
@@ -63,10 +66,31 @@ export const useInterview = () => {
         let response = null
         try {
             response = await generateResumePdf({ interviewReportId })
+            const sanitizedName = sanitizeNameForFilename(user?.fullName)
             const url = window.URL.createObjectURL(new Blob([ response ], { type: "application/pdf" }))
             const link = document.createElement("a")
             link.href = url
-            link.setAttribute("download", `resume_${interviewReportId}.pdf`)
+            link.setAttribute("download", `${sanitizedName || "resume"}_cv.pdf`)
+            document.body.appendChild(link)
+            link.click()
+        }
+        catch (error) {
+            console.log(error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const getCoverLetterPdf = async (interviewReportId) => {
+        setLoading(true)
+        let response = null
+        try {
+            response = await generateCoverLetterPdf({ interviewReportId })
+            const sanitizedName = sanitizeNameForFilename(user?.fullName)
+            const url = window.URL.createObjectURL(new Blob([ response ], { type: "application/pdf" }))
+            const link = document.createElement("a")
+            link.href = url
+            link.setAttribute("download", `${sanitizedName || "cover_letter"}_cover_letter.pdf`)
             document.body.appendChild(link)
             link.click()
         }
@@ -85,6 +109,6 @@ export const useInterview = () => {
         }
     }, [ interviewId ])
 
-    return { loading, report, reports, generateReport, getReportById, getReports, getResumePdf }
+    return { loading, report, reports, generateReport, getReportById, getReports, getResumePdf, getCoverLetterPdf }
 
 }

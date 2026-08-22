@@ -1,20 +1,13 @@
 @use "sass:color";
+@use "../../../style/colors" as *;
 
-// ── Variables ────────────────────────────────────────────────────────────────
-$bg-page:        #0d1117;
-$bg-card:        #161b22;
-$bg-panel:       #1c2230;
-$bg-input:       #1e2535;
-$border-color:   #2a3348;
-$text-primary:   #e6edf3;
-$text-muted:     #7d8590;
-$accent:         #ff2d78;
-$accent-alt:     #ff6b9d;
-$badge-required: #ff2d78;
-$badge-best:     #ff2d78;
-$info-bg:        #1b2a4a;
-$info-border:    #2d4a7a;
-$font-stack:     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+// ── Local aliases (this file's "$accent" means "high-pop CTA color") ──────────
+$bg-panel:       color.adjust($bg-card, $lightness: -8%);
+$accent:         $accent-light;
+$badge-required: $accent-light;
+$badge-best:     $accent-light;
+$info-bg:        $bg-input;
+$info-border:    $accent-light;
 
 // ── Page Shell ───────────────────────────────────────────────────────────────
 .home-page {
@@ -86,9 +79,9 @@ $font-stack:     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
     transition: all 0.3s ease;
 
     &:hover {
-        background-color: rgba(255, 45, 120, 0.1);
-        color: $accent;
-        border-color: $accent;
+        background-color: rgba($accent-light, 0.1);
+        color: $accent-light;
+        border-color: $accent-light;
     }
 
     svg {
@@ -202,6 +195,30 @@ $font-stack:     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
 
     &--right {
         gap: 0.75rem;
+    }
+}
+
+// ── Roadmap Days Select ───────────────────────────────────────────────────────
+.roadmap-days-select {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+
+    select {
+        background-color: $bg-input;
+        border: 1px solid $border-color;
+        border-radius: 0.5rem;
+        padding: 0.6rem 0.75rem;
+        color: $text-primary;
+        font-family: $font-stack;
+        font-size: 0.875rem;
+        outline: none;
+        cursor: pointer;
+        transition: border-color 0.2s;
+
+        &:focus {
+            border-color: $accent;
+        }
     }
 }
 
@@ -322,14 +339,14 @@ $font-stack:     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
 
     &__icon {
         flex-shrink: 0;
-        color: #4a90e2;
+        color: $accent-light;
         margin-top: 1px;
     }
 
     p {
         margin: 0;
         font-size: 0.8rem;
-        color: #8ab4f8;
+        color: $accent-light;
         line-height: 1.5;
 
         strong {
@@ -345,7 +362,7 @@ $font-stack:     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
     gap: 0.5rem;
     padding: 0.75rem 1.5rem;
     background: linear-gradient(135deg, $accent 0%, color.adjust($accent, $lightness: -10%) 100%);
-    color: #fff;
+    color: $bg-page;
     font-size: 0.9rem;
     font-weight: 600;
     border: none;
