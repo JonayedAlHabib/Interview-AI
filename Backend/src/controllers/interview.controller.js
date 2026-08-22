@@ -1,7 +1,27 @@
 const pdfParse = require("pdf-parse")
 const mammoth = require("mammoth")
-const { generateInterviewReport, generateResumePdf } = require("../services/ai.service")
+const { generateInterviewReport, generateResumePdf, generateCoverLetterPdf, AIServiceUnavailableError } = require("../services/ai.service")
 const interviewReportModel = require("../models/interviewReport.model")
+const userModel = require("../models/user.model")
+
+const ALLOWED_ROADMAP_DAYS = [ 7, 15, 30 ]
+
+/**
+ * @description Sanitize a user's full name into a filesystem/URL-safe lowercase token for filenames.
+ */
+function sanitizeNameForFilename(fullName) {
+    return (fullName || "").toLowerCase().replace(/[^a-z0-9]+/g, "")
+}
+
+/**
+ * @description Respond with 503 for a temporary AI capacity outage, otherwise 400 with the error message.
+ */
+function respondWithAIError(res, error, fallbackMessage) {
+    if (error instanceof AIServiceUnavailableError) {
+        return res.status(503).json({ message: error.message })
+    }
+    res.status(400).json({ message: error.message || fallbackMessage })
+}
 
 /**
  * @description Extract text from PDF or DOCX file
@@ -50,10 +70,13 @@ async function generateInterViewReportController(req, res) {
             })
         }
 
+        const roadmapDays = ALLOWED_ROADMAP_DAYS.includes(Number(req.body.roadmapDays)) ? Number(req.body.roadmapDays) : 15
+
         const interViewReportByAi = await generateInterviewReport({
             resume: resumeText,
             selfDescription,
-            jobDescription
+            jobDescription,
+            roadmapDays
         })
 
         // Ensure title field exists from AI response
@@ -66,6 +89,7 @@ async function generateInterViewReportController(req, res) {
             resume: resumeText,
             selfDescription,
             jobDescription,
+            roadmapDays,
             ...interViewReportByAi
         })
 
@@ -75,9 +99,7 @@ async function generateInterViewReportController(req, res) {
         })
     } catch (error) {
         console.error("Interview Report Error:", error.message)
-        res.status(400).json({
-            message: error.message || "Failed to generate interview report"
-        })
+        respondWithAIError(res, error, "Failed to generate interview report")
     }
 
 }
@@ -121,26 +143,68 @@ async function getAllInterviewReportsController(req, res) {
  * @description Controller to generate resume PDF based on user self description, resume and job description.
  */
 async function generateResumePdfController(req, res) {
-    const { interviewReportId } = req.params
+    try {
+        const { interviewReportId } = req.params
 
-    const interviewReport = await interviewReportModel.findById(interviewReportId)
+        const interviewReport = await interviewReportModel.findOne({ _id: interviewReportId, user: req.user.id })
 
-    if (!interviewReport) {
-        return res.status(404).json({
-            message: "Interview report not found."
+        if (!interviewReport) {
+            return res.status(404).json({
+                message: "Interview report not found."
+            })
+        }
+
+        const { resume, jobDescription, selfDescription } = interviewReport
+
+        const pdfBuffer = await generateResumePdf({ resume, jobDescription, selfDescription })
+
+        const user = await userModel.findById(req.user.id)
+        const sanitizedName = sanitizeNameForFilename(user.fullName)
+
+        res.set({
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `attachment; filename=${sanitizedName || "resume"}_cv.pdf`
         })
+
+        res.send(pdfBuffer)
+    } catch (error) {
+        console.error("Resume PDF Error:", error.message)
+        respondWithAIError(res, error, "Failed to generate resume PDF")
     }
-
-    const { resume, jobDescription, selfDescription } = interviewReport
-
-    const pdfBuffer = await generateResumePdf({ resume, jobDescription, selfDescription })
-
-    res.set({
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename=resume_${interviewReportId}.pdf`
-    })
-
-    res.send(pdfBuffer)
 }
 
-module.exports = { generateInterViewReportController, getInterviewReportByIdController, getAllInterviewReportsController, generateResumePdfController }
+/**
+ * @description Controller to generate cover letter PDF based on user self description, resume and job description.
+ */
+async function generateCoverLetterPdfController(req, res) {
+    try {
+        const { interviewReportId } = req.params
+
+        const interviewReport = await interviewReportModel.findOne({ _id: interviewReportId, user: req.user.id })
+
+        if (!interviewReport) {
+            return res.status(404).json({
+                message: "Interview report not found."
+            })
+        }
+
+        const { resume, jobDescription, selfDescription } = interviewReport
+
+        const pdfBuffer = await generateCoverLetterPdf({ resume, jobDescription, selfDescription })
+
+        const user = await userModel.findById(req.user.id)
+        const sanitizedName = sanitizeNameForFilename(user.fullName)
+
+        res.set({
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `attachment; filename=${sanitizedName || "cover_letter"}_cover_letter.pdf`
+        })
+
+        res.send(pdfBuffer)
+    } catch (error) {
+        console.error("Cover Letter PDF Error:", error.message)
+        respondWithAIError(res, error, "Failed to generate cover letter PDF")
+    }
+}
+
+module.exports = { generateInterViewReportController, getInterviewReportByIdController, getAllInterviewReportsController, generateResumePdfController, generateCoverLetterPdfController }

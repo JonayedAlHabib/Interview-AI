@@ -1,10 +1,82 @@
-const { GoogleGenAI } = require("@google/genai")
+const { GoogleGenAI, ApiError } = require("@google/genai")
 const { z } = require("zod")
 const puppeteer = require("puppeteer")
 
 const ai = new GoogleGenAI({
     apiKey: process.env.GOOGLE_GENAI_API_KEY
+    // Deliberately NOT using the SDK's httpOptions.retryOptions here: when configured, it
+    // swallows the structured ApiError (status + JSON body) and rethrows a generic
+    // "Retryable HTTP Error: ..." instead, which breaks capacity detection below. Retry/backoff
+    // is handled explicitly in generateContent() instead, where the ApiError shape is reliable.
 })
+
+/**
+ * @description Thrown when every model in MODEL_CANDIDATES is rate-limited/unavailable.
+ * Controllers catch this and respond 503 with this error's (already user-safe) message,
+ * instead of leaking the raw Gemini error JSON to the client.
+ */
+class AIServiceUnavailableError extends Error {
+    constructor(message) {
+        super(message)
+        this.name = "AIServiceUnavailableError"
+    }
+}
+
+// Gemini's free-tier quota is billed per model, not per project, so a model that's
+// rate-limited or exhausted still leaves the others' quota untouched. Falling through
+// this list turns a single model's outage into an in-request recovery instead of a
+// hard failure. Order = preference: try the primary model first, then cheaper/older
+// stable models as capacity fallbacks.
+const MODEL_CANDIDATES = [
+    process.env.GOOGLE_GENAI_MODEL || "gemini-3-flash-preview",
+    "gemini-flash-latest", // Google-maintained alias for the current stable flash model —
+                            // keeps this fallback working even as specific model ids get deprecated.
+    "gemini-3.5-flash",
+]
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * @description Wraps ai.models.generateContent with two layers of resilience:
+ * 1. A couple of short-backoff retries on the same model for transient 5xx errors.
+ * 2. Falling through MODEL_CANDIDATES on 429 (rate-limited/quota-exhausted) or once 5xx
+ *    retries are spent, since quota is billed per model, so a different model is likely unaffected.
+ * Non-capacity errors (e.g. a malformed request, 400) are thrown immediately since neither
+ * retrying nor switching models can fix them.
+ */
+async function generateContent(params) {
+    let lastError
+
+    for (const model of MODEL_CANDIDATES) {
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+                return await ai.models.generateContent({ ...params, model })
+            } catch (error) {
+                lastError = error
+                const isCapacityError = error instanceof ApiError && (error.status === 429 || error.status >= 500)
+
+                if (!isCapacityError) {
+                    throw error
+                }
+
+                const isTransient = error.status >= 500 && attempt < 2
+                if (isTransient) {
+                    console.warn(`AI model "${model}" returned ${error.status}, retrying once...`)
+                    await sleep(1000)
+                    continue
+                }
+
+                console.warn(`AI model "${model}" unavailable (status ${error.status}), trying next fallback model...`)
+                break
+            }
+        }
+    }
+
+    console.error("All AI model fallbacks exhausted:", lastError?.message)
+    throw new AIServiceUnavailableError(
+        "The AI service is temporarily unavailable due to usage limits. Please try again in a few minutes."
+    )
+}
 
 /**
  * @description Convert a Zod schema into a JSON schema Gemini's responseSchema accepts.
@@ -31,17 +103,19 @@ function toGeminiSchema(zodSchema) {
 }
 
 /**
- * @description Test AI service connection
+ * @description Test AI service connection. Skipped by default outside production since nodemon
+ * restarts on every save in development, and each restart would otherwise burn a request against
+ * the free-tier daily quota just for a health check. Set RUN_AI_HEALTH_CHECK=true to force it.
  */
 async function checkAIConnection() {
+    if (process.env.NODE_ENV !== "production" && process.env.RUN_AI_HEALTH_CHECK !== "true") {
+        console.log("ℹ️  AI Service health check skipped in development (set RUN_AI_HEALTH_CHECK=true to force it)")
+        return null
+    }
+
     try {
-        const testPrompt = "Say 'AI Service Connected' in one sentence"
-        
-        const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: testPrompt,
-        })
-        
+        const response = await generateContent({ contents: "Say 'AI Service Connected' in one sentence" })
+
         if (response.text) {
             console.log("✅ AI Service Connected: Google Gemini API is working")
             return true
@@ -59,12 +133,12 @@ const interviewReportSchema = z.object({
         question: z.string().describe("The technical question can be asked in the interview"),
         intention: z.string().describe("The intention of interviewer behind asking this question"),
         answer: z.string().describe("How to answer this question, what points to cover, what approach to take etc.")
-    })).describe("Technical questions that can be asked in the interview along with their intention and how to answer them"),
+    })).min(10).describe("At least 10 technical questions that can be asked in the interview along with their intention and how to answer them"),
     behavioralQuestions: z.array(z.object({
         question: z.string().describe("The technical question can be asked in the interview"),
         intention: z.string().describe("The intention of interviewer behind asking this question"),
         answer: z.string().describe("How to answer this question, what points to cover, what approach to take etc.")
-    })).describe("Behavioral questions that can be asked in the interview along with their intention and how to answer them"),
+    })).min(5).describe("At least 5 behavioral questions that can be asked in the interview along with their intention and how to answer them"),
     skillGaps: z.array(z.object({
         skill: z.string().describe("The skill which the candidate is lacking"),
         severity: z.enum([ "low", "medium", "high" ]).describe("The severity of this skill gap, i.e. how important is this skill for the job and how much it can impact the candidate's chances")
@@ -77,17 +151,19 @@ const interviewReportSchema = z.object({
     title: z.string().describe("The title of the job for which the interview report is generated"),
 })
 
-async function generateInterviewReport({ resume, selfDescription, jobDescription }) {
+async function generateInterviewReport({ resume, selfDescription, jobDescription, roadmapDays }) {
 
 
     const prompt = `Generate an interview report for a candidate with the following details:
                         Resume: ${resume}
                         Self Description: ${selfDescription}
                         Job Description: ${jobDescription}
+
+                        Generate at least 10 technical questions and at least 5 behavioral questions.
+                        Generate a preparation plan spanning exactly ${roadmapDays} days, numbered day 1 through day ${roadmapDays}.
 `
 
-    const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+    const response = await generateContent({
         contents: prompt,
         config: {
             responseMimeType: "application/json",
@@ -140,8 +216,7 @@ async function generateResumePdf({ resume, selfDescription, jobDescription }) {
                         The resume should not be so lengthy, it should ideally be 1-2 pages long when converted to PDF. Focus on quality rather than quantity and make sure to include all the relevant information that can increase the candidate's chances of getting an interview call for the given job description.
                     `
 
-    const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+    const response = await generateContent({
         contents: prompt,
         config: {
             responseMimeType: "application/json",
@@ -193,8 +268,7 @@ async function generateMockInterviewTurn({ jobDescription, resume, selfDescripti
                         Then generate the next interview question ("nextQuestion"), adaptive to what has already been asked and answered, mixing technical and behavioral questions relevant to the job description.
 `
 
-    const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+    const response = await generateContent({
         contents: prompt,
         config: {
             responseMimeType: "application/json",
@@ -228,8 +302,7 @@ async function generateMockInterviewSummary({ jobDescription, history }) {
                         Generate an overall performance summary for the candidate, covering their strengths, weaknesses, and a recommendation for what to focus on next in their preparation. Also provide an overall score between 0 and 100 for the whole session.
 `
 
-    const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+    const response = await generateContent({
         contents: prompt,
         config: {
             responseMimeType: "application/json",
@@ -241,4 +314,39 @@ async function generateMockInterviewSummary({ jobDescription, history }) {
 }
 
 
-module.exports = { generateInterviewReport, generateResumePdf, checkAIConnection, generateMockInterviewTurn, generateMockInterviewSummary }
+async function generateCoverLetterPdf({ resume, selfDescription, jobDescription }) {
+
+    const coverLetterSchema = z.object({
+        html: z.string().describe("The HTML content of the cover letter which can be converted to PDF using any library like puppeteer")
+    })
+
+    const prompt = `Generate a cover letter for a candidate with the following details:
+                        Resume: ${resume}
+                        Self Description: ${selfDescription}
+                        Job Description: ${jobDescription}
+
+                        the response should be a JSON object with a single field "html" which contains the HTML content of the cover letter which can be converted to PDF using any library like puppeteer.
+                        The cover letter should be tailored for the given job description, highlighting the candidate's most relevant strengths and experience for this specific role.
+                        The content of the cover letter should not sound like it's generated by AI and should be as close as possible to a real human-written cover letter.
+                        The overall design should be simple and professional, using standard business letter formatting.
+                        The cover letter should be concise, ideally fitting on a single page when converted to PDF.
+                    `
+
+    const response = await generateContent({
+        contents: prompt,
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: toGeminiSchema(coverLetterSchema),
+        }
+    })
+
+    const jsonContent = JSON.parse(response.text)
+
+    const pdfBuffer = await generatePdfFromHtml(jsonContent.html)
+
+    return pdfBuffer
+
+}
+
+
+module.exports = { generateInterviewReport, generateResumePdf, generateCoverLetterPdf, checkAIConnection, generateMockInterviewTurn, generateMockInterviewSummary, AIServiceUnavailableError }
