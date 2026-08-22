@@ -15,20 +15,24 @@ export const useAuth = () => {
         try {
             const data = await login({ email, password })
             setUser(data.user)
-        } catch (err) {
-
+        } catch (error) {
+            console.error(error)
+            const message = error?.response?.data?.message || error.message || "Failed to log in. Please try again."
+            throw new Error(message)
         } finally {
             setLoading(false)
         }
     }
 
-    const handleRegister = async ({ username, email, password }) => {
+    const handleRegister = async ({ fullName, username, email, password }) => {
         setLoading(true)
         try {
-            const data = await register({ username, email, password })
+            const data = await register({ fullName, username, email, password })
             setUser(data.user)
-        } catch (err) {
-
+        } catch (error) {
+            console.error(error)
+            const message = error?.response?.data?.message || error.message || "Failed to register. Please try again."
+            throw new Error(message)
         } finally {
             setLoading(false)
         }
@@ -37,11 +41,11 @@ export const useAuth = () => {
     const handleLogout = async () => {
         setLoading(true)
         try {
-            const data = await logout()
-            setUser(null)
-        } catch (err) {
-
+            await logout()
+        } catch (error) {
+            console.error(error)
         } finally {
+            setUser(null)
             setLoading(false)
         }
     }

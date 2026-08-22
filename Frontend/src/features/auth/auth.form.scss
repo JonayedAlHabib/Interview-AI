@@ -1,18 +1,62 @@
-main{
+@use "../../style/colors" as *;
+
+.auth-page{
     min-height: 100vh;
     width: 100%;
+    background-color: $bg-page;
 
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+    box-sizing: border-box;
 
+    .back-link{
+        align-self: center;
+        font-size: 0.85rem;
+        color: $text-muted;
+        text-decoration: none;
+        margin-bottom: 0.25rem;
 
-    .form-container{
-        min-width: 350px;
+        &:hover{
+            color: $accent-light;
+        }
+    }
+
+    .auth-card{
+        width: 100%;
+        max-width: 400px;
+        background-color: $bg-card;
+        border-radius: 1.5rem;
+        padding: 2.5rem;
+        box-sizing: border-box;
 
         display: flex;
         flex-direction: column;
-        gap: 1rem;
+        gap: 1.5rem;
+    }
+
+    .auth-logo{
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: $text-primary;
+        text-decoration: none;
+    }
+
+    .auth-card__header{
+        h1{
+            margin: 0 0 0.35rem;
+            font-size: 1.75rem;
+            color: $text-primary;
+        }
+
+        p{
+            margin: 0;
+            font-size: 0.9rem;
+            color: $text-muted;
+        }
     }
 
     form{
@@ -24,9 +68,12 @@ main{
     .input-group{
         display: flex;
         flex-direction: column;
-
         gap: 0.5rem;
 
+        label{
+            font-size: 0.8rem;
+            color: $text-muted;
+        }
 
         input{
             border: none;
@@ -34,11 +81,46 @@ main{
             padding-inline: 1rem;
             padding-block: 0.75rem;
             border-radius: 0.75rem;
+            background-color: $bg-input;
+            color: $text-primary;
+            font-family: $font-stack;
+
+            &::placeholder{
+                color: $text-muted;
+            }
+
+            &:focus{
+                outline: 2px solid $accent-light;
+            }
         }
     }
 
+    .auth-submit-btn{
+        width: 100%;
+        background-color: $text-primary;
+        color: $bg-page;
+        font-weight: 600;
+        margin-top: 0.5rem;
+
+        &:hover{
+            opacity: 0.9;
+        }
+    }
+
+    .auth-switch{
+        margin: 0;
+        font-size: 0.85rem;
+        color: $text-muted;
+    }
+
     a{
-        color: #e1034d;
+        color: $accent-light;
         text-decoration: none;
+    }
+
+    .form-error{
+        color: #ff6b6b;
+        font-size: 0.85rem;
+        margin: 0;
     }
 }
