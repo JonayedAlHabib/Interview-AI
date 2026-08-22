@@ -1,6 +1,7 @@
 const express = require("express")
 const authMiddleware = require("../middlewares/auth.middleware")
 const mockInterviewController = require("../controllers/mockInterview.controller")
+const { aiLimiter } = require("../middlewares/rateLimit.middleware")
 
 const mockInterviewRouter = express.Router()
 
@@ -10,7 +11,7 @@ const mockInterviewRouter = express.Router()
  * @description start a new mock interview session based on an existing interview report.
  * @access private
  */
-mockInterviewRouter.post("/start", authMiddleware.authUser, mockInterviewController.startMockInterviewController)
+mockInterviewRouter.post("/start", authMiddleware.authUser, aiLimiter, mockInterviewController.startMockInterviewController)
 
 
 /**
@@ -18,7 +19,7 @@ mockInterviewRouter.post("/start", authMiddleware.authUser, mockInterviewControl
  * @description submit an answer to the current question of a mock interview session.
  * @access private
  */
-mockInterviewRouter.post("/:sessionId/answer", authMiddleware.authUser, mockInterviewController.submitAnswerController)
+mockInterviewRouter.post("/:sessionId/answer", authMiddleware.authUser, aiLimiter, mockInterviewController.submitAnswerController)
 
 
 /**
@@ -26,7 +27,7 @@ mockInterviewRouter.post("/:sessionId/answer", authMiddleware.authUser, mockInte
  * @description end a mock interview session and generate an overall performance summary.
  * @access private
  */
-mockInterviewRouter.post("/:sessionId/end", authMiddleware.authUser, mockInterviewController.endSessionController)
+mockInterviewRouter.post("/:sessionId/end", authMiddleware.authUser, aiLimiter, mockInterviewController.endSessionController)
 
 
 /**
