@@ -1,0 +1,16 @@
+@use "sass:color";
+
+$bg-page: #042A41;
+$bg-card: #365C73;
+$bg-input: color.adjust(#365C73, $lightness: -12%);
+$border-color: #7298AF;
+$text-primary: #EAFFFF;
+$text-muted: #7298AF;
+$accent: #004671;
+$accent-light: #C2E8FF;
+
+$severity-high: #ff4d4d;
+$severity-medium: #f5a623;
+$severity-low: #3fb950;
+
+$font-stack: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
