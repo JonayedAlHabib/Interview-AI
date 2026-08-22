@@ -207,6 +207,21 @@ $severity-low: #3fb950;
     }
 }
 
+.secondary-button {
+    background-color: transparent;
+    border: 1px solid $border-color;
+    color: $text-primary;
+
+    &:hover:not(:disabled) {
+        background-color: $bg-panel;
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+}
+
 // ── Question Cards ────────────────────────────────────────────────────────────
 .q-list {
     display: flex;

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import '../style/interview.scss'
 import { useInterview } from '../hooks/useInterview.js'
 import { useAuth } from '../../auth/hooks/useAuth.js'
+import { useMockInterview } from '../../mockInterview/hooks/useMockInterview.js'
 import { useNavigate, useParams } from 'react-router'
 
 
@@ -61,12 +62,26 @@ const RoadMapDay = ({ day }) => (
 const Interview = () => {
     const [ activeNav, setActiveNav ] = useState('technical')
     const { report, getReportById, loading, getResumePdf } = useInterview()
+    const { startSession } = useMockInterview()
     const { interviewId } = useParams()
     const navigate = useNavigate()
     const { handleLogout } = useAuth()
+    const [ startingMockInterview, setStartingMockInterview ] = useState(false)
 
     const handleBackClick = () => {
         navigate('/')
+    }
+
+    const handleStartMockInterview = async () => {
+        setStartingMockInterview(true)
+        try {
+            const session = await startSession(interviewId)
+            navigate(`/mock-interview/${session._id}`)
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setStartingMockInterview(false)
+        }
     }
 
     const handleLogoutClick = async () => {
@@ -125,6 +140,13 @@ const Interview = () => {
                             </button>
                         ))}
                     </div>
+                    <button
+                        onClick={handleStartMockInterview}
+                        disabled={startingMockInterview}
+                        className='button secondary-button' style={{ marginBottom: '0.6rem' }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" style={{ marginRight: "0.6rem" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                        {startingMockInterview ? 'Starting...' : 'Start Mock Interview'}
+                    </button>
                     <button
                         onClick={() => { getResumePdf(interviewId) }}
                         className='button primary-button' >
