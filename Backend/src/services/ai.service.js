@@ -158,4 +158,87 @@ async function generateResumePdf({ resume, selfDescription, jobDescription }) {
 
 }
 
-module.exports = { generateInterviewReport, generateResumePdf, checkAIConnection }
+const mockInterviewTurnSchema = z.object({
+    evaluation: z.object({
+        score: z.number().describe("A score between 0 and 100 for how well the candidate answered the last question"),
+        feedback: z.string().describe("2-3 sentence critique of the candidate's answer, covering strengths and gaps")
+    }).nullable().describe("Evaluation of the candidate's most recent answer. Must be null only when there is no prior answer to evaluate, i.e. this is the first question of the session."),
+    nextQuestion: z.object({
+        question: z.string().describe("The next interview question to ask the candidate"),
+        type: z.enum([ "technical", "behavioral" ]).describe("Whether this is a technical or behavioral question")
+    }).describe("The next question to ask the candidate, adaptive to the conversation so far")
+})
+
+/**
+ * @description Generate the next turn of a mock interview: evaluates the candidate's latest answer
+ * (if any) and produces the next adaptive question, based on the job/candidate context and the
+ * conversation history so far.
+ */
+async function generateMockInterviewTurn({ jobDescription, resume, selfDescription, history }) {
+
+    const transcript = history.length
+        ? history.map((turn, i) => `Q${ i + 1 } (${ turn.type }): ${ turn.question }\nCandidate's Answer: ${ turn.answer }`).join("\n\n")
+        : "No questions have been asked yet. This is the first question of the session."
+
+    const prompt = `You are conducting a live mock interview for a candidate with the following details:
+                        Resume: ${ resume }
+                        Self Description: ${ selfDescription }
+                        Job Description: ${ jobDescription }
+
+                        Conversation so far:
+                        ${ transcript }
+
+                        If the conversation so far contains at least one candidate answer, evaluate the candidate's most recent answer (the last one in the transcript) and set "evaluation" accordingly.
+                        If no answer has been given yet, set "evaluation" to null.
+                        Then generate the next interview question ("nextQuestion"), adaptive to what has already been asked and answered, mixing technical and behavioral questions relevant to the job description.
+`
+
+    const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: toGeminiSchema(mockInterviewTurnSchema),
+        }
+    })
+
+    return JSON.parse(response.text)
+}
+
+
+const mockInterviewSummarySchema = z.object({
+    overallScore: z.number().describe("An overall score between 0 and 100 for the candidate's performance across the whole mock interview session"),
+    summary: z.string().describe("An overall performance summary covering strengths, weaknesses, and a recommendation for further preparation")
+})
+
+/**
+ * @description Generate an overall performance summary for a completed mock interview session
+ * based on the full question/answer/evaluation transcript.
+ */
+async function generateMockInterviewSummary({ jobDescription, history }) {
+
+    const transcript = history.map((turn, i) => `Q${ i + 1 } (${ turn.type }): ${ turn.question }\nCandidate's Answer: ${ turn.answer }\nScore: ${ turn.score }\nFeedback: ${ turn.feedback }`).join("\n\n")
+
+    const prompt = `You are reviewing a completed mock interview for a candidate applying to the following job:
+                        Job Description: ${ jobDescription }
+
+                        Full transcript with per-question scores and feedback:
+                        ${ transcript }
+
+                        Generate an overall performance summary for the candidate, covering their strengths, weaknesses, and a recommendation for what to focus on next in their preparation. Also provide an overall score between 0 and 100 for the whole session.
+`
+
+    const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: toGeminiSchema(mockInterviewSummarySchema),
+        }
+    })
+
+    return JSON.parse(response.text)
+}
+
+
+module.exports = { generateInterviewReport, generateResumePdf, checkAIConnection, generateMockInterviewTurn, generateMockInterviewSummary }
