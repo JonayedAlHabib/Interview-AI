@@ -80,6 +80,9 @@ const interviewReportSchema = new mongoose.Schema({
         min: 0,
         max: 100,
     },
+    roadmapDays: {
+        type: Number,
+    },
     technicalQuestions: [ technicalQuestionSchema ],
     behavioralQuestions: [ behavioralQuestionSchema ],
     skillGaps: [ skillGapSchema ],

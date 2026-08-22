@@ -10,11 +10,11 @@ const tokenBlacklistModel = require("../models/blacklist.model")
  */
 async function registerUserController(req, res) {
 
-    const { username, email, password } = req.body
+    const { fullName, username, email, password } = req.body
 
-    if (!username || !email || !password) {
+    if (!fullName || !username || !email || !password) {
         return res.status(400).json({
-            message: "Please provide username, email and password"
+            message: "Please provide full name, username, email and password"
         })
     }
 
@@ -31,6 +31,7 @@ async function registerUserController(req, res) {
     const hash = await bcrypt.hash(password, 10)
 
     const user = await userModel.create({
+        fullName,
         username,
         email,
         password: hash
@@ -49,6 +50,7 @@ async function registerUserController(req, res) {
         message: "User registered successfully",
         user: {
             id: user._id,
+            fullName: user.fullName,
             username: user.username,
             email: user.email
         }
@@ -93,6 +95,7 @@ async function loginUserController(req, res) {
         message: "User loggedIn successfully.",
         user: {
             id: user._id,
+            fullName: user.fullName,
             username: user.username,
             email: user.email
         }
@@ -134,6 +137,7 @@ async function getMeController(req, res) {
         message: "User details fetched successfully",
         user: {
             id: user._id,
+            fullName: user.fullName,
             username: user.username,
             email: user.email
         }
