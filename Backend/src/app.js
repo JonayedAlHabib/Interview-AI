@@ -14,9 +14,11 @@ app.use(cors({
 
 const authRouter = require("./routes/auth.routes")
 const interviewRouter = require("./routes/interview.routes")
+const mockInterviewRouter = require("./routes/mockInterview.routes")
 
 
 app.use("/api/auth", authRouter)
 app.use("/api/interview",interviewRouter)
+app.use("/api/mock-interview", mockInterviewRouter)
 
 module.exports = app
