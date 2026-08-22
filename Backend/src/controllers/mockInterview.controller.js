@@ -1,8 +1,18 @@
-const { generateMockInterviewTurn, generateMockInterviewSummary } = require("../services/ai.service")
+const { generateMockInterviewTurn, generateMockInterviewSummary, AIServiceUnavailableError } = require("../services/ai.service")
 const mockInterviewSessionModel = require("../models/mockInterviewSession.model")
 const interviewReportModel = require("../models/interviewReport.model")
 
 const MAX_TURNS = 6
+
+/**
+ * @description Respond with 503 for a temporary AI capacity outage, otherwise 400 with the error message.
+ */
+function respondWithAIError(res, error, fallbackMessage) {
+    if (error instanceof AIServiceUnavailableError) {
+        return res.status(503).json({ message: error.message })
+    }
+    res.status(400).json({ message: error.message || fallbackMessage })
+}
 
 /**
  * @description Controller to start a new mock interview session based on an existing interview report.
@@ -46,9 +56,7 @@ async function startMockInterviewController(req, res) {
         })
     } catch (error) {
         console.error("Start Mock Interview Error:", error.message)
-        res.status(400).json({
-            message: error.message || "Failed to start mock interview session"
-        })
+        respondWithAIError(res, error, "Failed to start mock interview session")
     }
 }
 
@@ -112,9 +120,7 @@ async function submitAnswerController(req, res) {
         })
     } catch (error) {
         console.error("Submit Mock Interview Answer Error:", error.message)
-        res.status(400).json({
-            message: error.message || "Failed to submit answer"
-        })
+        respondWithAIError(res, error, "Failed to submit answer")
     }
 }
 
@@ -162,9 +168,7 @@ async function endSessionController(req, res) {
         })
     } catch (error) {
         console.error("End Mock Interview Session Error:", error.message)
-        res.status(400).json({
-            message: error.message || "Failed to end mock interview session"
-        })
+        respondWithAIError(res, error, "Failed to end mock interview session")
     }
 }
 
